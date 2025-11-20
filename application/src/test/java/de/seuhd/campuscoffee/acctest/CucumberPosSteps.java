@@ -92,6 +92,14 @@ public class CucumberPosSteps {
     }
 
     // TODO: Add Given step for new scenario
+    @Given("the following POS exist:")
+    public void theFollowingPosExist(List<PosDto> posList) {
+        // nutzt den DataTableType oben, d.h. die Tabelle wird automatisch in List<PosDto> gemappt
+        createdPosList = createPos(posList);
+        // Sicherheitscheck: so viele POS wurden tatsächlich angelegt wie in der Tabelle
+        assertThat(createdPosList).hasSize(posList.size());
+    }
+
 
     // When -----------------------------------------------------------------------
 
@@ -102,6 +110,40 @@ public class CucumberPosSteps {
     }
 
     // TODO: Add When step for new scenario
+    @When("I update the POS with name {string} to have description {string}")
+    public void iUpdateThePosWithNameToHaveDescription(String name, String newDescription) {
+        // 1. Den ursprünglich angelegten POS mit diesem Namen in createdPosList suchen
+        PosDto original = createdPosList.stream()
+                .filter(pos -> pos.name().equals(name))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("No POS with name " + name + " found in createdPosList"));
+
+        // 2. Neuen DTO-Body bauen: gleiche Daten, aber neue Beschreibung
+        PosDto updateRequest = PosDto.builder()
+                .id(original.id())
+                .name(original.name())
+                .description(newDescription)
+                .type(original.type())
+                .campus(original.campus())
+                .street(original.street())
+                .houseNumber(original.houseNumber())
+                .postalCode(original.postalCode())
+                .city(original.city())
+                .build();
+
+        // 3. PUT /api/pos/{id} aufrufen und Antwort wieder als PosDto einlesen
+        updatedPos = RestAssured
+                .given()
+                .header("Content-Type", "application/json")
+                .body(updateRequest)
+                .when()
+                .put("/api/pos/" + original.id())
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(PosDto.class);
+    }
+
 
     // Then -----------------------------------------------------------------------
 
@@ -114,4 +156,19 @@ public class CucumberPosSteps {
     }
 
     // TODO: Add Then step for new scenario
+    @Then("the POS with name {string} should have description {string}")
+    public void thePosWithNameShouldHaveDescription(String name, String expectedDescription) {
+        // 1. Aktuelle POS-Liste von der API holen
+        List<PosDto> allPos = retrievePos();
+
+        // 2. Den POS mit dem gegebenen Namen finden
+        PosDto found = allPos.stream()
+                .filter(pos -> pos.name().equals(name))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No POS with name " + name + " found"));
+
+        // 3. Beschreibung prüfen
+        assertThat(found.description()).isEqualTo(expectedDescription);
+    }
+
 }
